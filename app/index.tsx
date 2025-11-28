@@ -25,7 +25,7 @@ export default function Index() {
       <WebView
         ref={webviewRef}
         source={{ uri: 'https://monrestoco.centre-valdeloire.fr/reservation/' }}
-        style={styles.webview}
+        style={[styles.webview, { backgroundColor: isDark ? '#252525' : '#ffffff' }]}
         sharedCookiesEnabled={true}
         domStorageEnabled={true}
         startInLoadingState={true}
