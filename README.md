@@ -19,12 +19,11 @@ Pour rendre l'expérience plus fluide sur mobile, du code JavaScript est inject�
 1.  Crée une balise `<style>` pour masquer via CSS le widget de chat (`#launcher`) et certains éléments du pied de page.
 2.  Utilise un `MutationObserver` pour surveiller les changements dans la page et masquer dynamiquement le lien "Menu" s'il réapparaît.
 
-### Mode Voyage dans le temps (Debug)
+### Mode Voyage dans le temps
 Ce mode est activé via le composant `TimeTraveler`.
 *   **Activation** : Détecte le mouvement de secousse (shake) de l'appareil via `expo-sensors`.
 *   **Effet** : Lorsque le mode est actif, un script est injecté avant le chargement du contenu (`injectedJavaScriptBeforeContentLoaded`). Ce script remplace l'objet `Date` global du navigateur par un `Proxy`.
-*   **Simulation** : Ce proxy intercepte toutes les demandes de date et renvoie systématiquement "hier à 10h00". Cela permet de tester le comportement du site de réservation comme si l'utilisateur s'y connectait à ce moment précis (utile pour tester les créneaux de réservation ouverts/fermés).
-
+*   **Simulation** : Ce proxy intercepte toutes les demandes de date et renvoie systématiquement "hier à 10h00".
 ## Installation et lancement
 
 1.  Installez les dépendances :
