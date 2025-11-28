@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, useColorScheme } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import TimeTraveler from '../components/TimeTraveler';
+import { DARK_MODE_INJECTION } from '../components/auto-dark';
 
 export default function Index() {
   const insets = useSafeAreaInsets();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
   const [isTimeTravelActive, setIsTimeTravelActive] = useState(false);
   const webviewRef = useRef<WebView>(null);
 
@@ -16,8 +19,8 @@ export default function Index() {
   }, [isTimeTravelActive]);
 
   return (
-    <View style={[styles.container, { paddingBottom: insets.bottom }]}>
-      <View style={{ height: insets.top * 0.5, backgroundColor: '#F8F9FB' }} />
+    <View style={[styles.container, { paddingBottom: insets.bottom, backgroundColor: isDark ? '#252525' : '#fff' }]}>
+      <View style={{ height: insets.top * 0.5, backgroundColor: isDark ? '#252525' : '#F8F9FB' }} />
       <TimeTraveler isActive={isTimeTravelActive} onToggle={setIsTimeTravelActive} />
       <WebView
         ref={webviewRef}
@@ -86,6 +89,7 @@ export default function Index() {
             const observer = new MutationObserver(hideMenu);
             observer.observe(document.body, { childList: true, subtree: true });
           })();
+          ${isDark ? DARK_MODE_INJECTION : ''}
           true;
         `}
       />
@@ -96,7 +100,6 @@ export default function Index() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
   },
   webview: {
     flex: 1,

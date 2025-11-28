@@ -1,6 +1,6 @@
 import { Accelerometer } from 'expo-sensors';
 import React, { useEffect, useState } from 'react';
-import { Modal, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { Modal, StyleSheet, Switch, Text, TouchableOpacity, View, useColorScheme } from 'react-native';
 
 interface TimeTravelerProps {
     isActive: boolean;
@@ -10,6 +10,8 @@ interface TimeTravelerProps {
 export default function TimeTraveler({ isActive, onToggle }: TimeTravelerProps) {
     const [modalVisible, setModalVisible] = useState(false);
     const [subscription, setSubscription] = useState<any>(null);
+    const colorScheme = useColorScheme();
+    const isDark = colorScheme === 'dark';
 
     const _subscribe = () => {
         setSubscription(
@@ -42,10 +44,10 @@ export default function TimeTraveler({ isActive, onToggle }: TimeTravelerProps) 
             onRequestClose={() => setModalVisible(false)}
         >
             <View style={styles.centeredView}>
-                <View style={styles.modalView}>
-                    <Text style={styles.modalText}>Mode Voyage dans le temps</Text>
+                <View style={[styles.modalView, isDark && styles.modalViewDark]}>
+                    <Text style={[styles.modalText, isDark && styles.textLight]}>Mode Voyage dans le temps</Text>
                     <View style={styles.row}>
-                        <Text style={styles.label}>Activer (Hier 10h)</Text>
+                        <Text style={[styles.label, isDark && styles.textLight]}>Activer (Hier 10h)</Text>
                         <Switch
                             trackColor={{ false: "#767577", true: "#1992A6" }}
                             thumbColor={isActive ? "#ffffff" : "#f4f3f4"}
@@ -70,6 +72,7 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
     },
     modalView: {
         margin: 20,
@@ -77,14 +80,9 @@ const styles = StyleSheet.create({
         borderRadius: 20,
         padding: 35,
         alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: {
-            width: 0,
-            height: 2,
-        },
-        shadowOpacity: 0.25,
-        shadowRadius: 4,
-        elevation: 5,
+    },
+    modalViewDark: {
+        backgroundColor: '#252525',
     },
     button: {
         borderRadius: 20,
@@ -107,6 +105,9 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: 'bold',
         color: '#1992A6',
+    },
+    textLight: {
+        color: '#fff',
     },
     row: {
         flexDirection: 'row',
