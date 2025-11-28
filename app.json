@@ -36,7 +36,17 @@
           }
         }
       ],
-      "expo-quick-actions"
+      [
+        "expo-quick-actions",
+        {
+          "androidIcons": {
+            "time_travel_icon": {
+              "foregroundImage": "./assets/images/time_travel_icon.png",
+              "backgroundColor": "#FFFFFF"
+            }
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

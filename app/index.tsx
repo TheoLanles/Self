@@ -24,7 +24,7 @@ export default function Index() {
       {
         title: 'Voyage dans le temps',
         subtitle: 'Activer le mode temporel',
-        icon: 'time',
+        icon: 'time_travel_icon',
         id: 'time_travel',
         params: { href: '/' },
       },
