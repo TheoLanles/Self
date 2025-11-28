@@ -24,6 +24,7 @@ Ce mode est activé via le composant `TimeTraveler`.
 *   **Activation** : Détecte le mouvement de secousse (shake) de l'appareil via `expo-sensors`.
 *   **Effet** : Lorsque le mode est actif, un script est injecté avant le chargement du contenu (`injectedJavaScriptBeforeContentLoaded`). Ce script remplace l'objet `Date` global du navigateur par un `Proxy`.
 *   **Simulation** : Ce proxy intercepte toutes les demandes de date et renvoie systématiquement "hier à 10h00".
+
 ## Installation et lancement
 
 1.  Installez les dépendances :
