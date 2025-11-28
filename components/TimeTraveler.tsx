@@ -36,19 +36,19 @@ export default function TimeTraveler({ isActive, onToggle }: TimeTravelerProps) 
 
     return (
         <Modal
-            animationType="slide"
+            animationType="fade"
             transparent={true}
             visible={modalVisible}
             onRequestClose={() => setModalVisible(false)}
         >
             <View style={styles.centeredView}>
                 <View style={styles.modalView}>
-                    <Text style={styles.modalText}>Time Travel Mode</Text>
+                    <Text style={styles.modalText}>Mode Voyage dans le temps</Text>
                     <View style={styles.row}>
-                        <Text>Activate (Yesterday 10:00 AM)</Text>
+                        <Text style={styles.label}>Activer (Hier 10h)</Text>
                         <Switch
-                            trackColor={{ false: "#767577", true: "#81b0ff" }}
-                            thumbColor={isActive ? "#f5dd4b" : "#f4f3f4"}
+                            trackColor={{ false: "#767577", true: "#1992A6" }}
+                            thumbColor={isActive ? "#ffffff" : "#f4f3f4"}
                             onValueChange={onToggle}
                             value={isActive}
                         />
@@ -57,7 +57,7 @@ export default function TimeTraveler({ isActive, onToggle }: TimeTravelerProps) 
                         style={[styles.button, styles.buttonClose]}
                         onPress={() => setModalVisible(false)}
                     >
-                        <Text style={styles.textStyle}>Close</Text>
+                        <Text style={styles.textStyle}>Fermer</Text>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -70,8 +70,6 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        marginTop: 22,
-        backgroundColor: 'rgba(0,0,0,0.5)',
     },
     modalView: {
         margin: 20,
@@ -93,9 +91,10 @@ const styles = StyleSheet.create({
         padding: 10,
         elevation: 2,
         marginTop: 15,
+        minWidth: 100,
     },
     buttonClose: {
-        backgroundColor: '#2196F3',
+        backgroundColor: '#1992A6',
     },
     textStyle: {
         color: 'white',
@@ -107,6 +106,7 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         fontSize: 18,
         fontWeight: 'bold',
+        color: '#1992A6',
     },
     row: {
         flexDirection: 'row',
@@ -114,5 +114,11 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         width: '100%',
         marginBottom: 15,
+    },
+    label: {
+        color: '#667085',
+        fontSize: 16,
+        marginRight: 10,
+        flex: 1,
     },
 });
