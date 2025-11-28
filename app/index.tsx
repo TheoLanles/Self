@@ -17,6 +17,29 @@ export default function Index() {
         cacheEnabled={true}
         javaScriptEnabled={true}
         cacheMode="LOAD_CACHE_ELSE_NETWORK"
+        injectedJavaScript={`
+          (function() {
+            const style = document.createElement('style');
+            style.innerHTML = \`
+              #launcher,
+              iframe[title="Nombre de messages non lus"] {
+                display: none !important;
+              }
+            \`;
+            document.head.appendChild(style);
+
+            setInterval(() => {
+              const menuLink = document.querySelector('a[href="/reservation/Menu/"]');
+              if (menuLink) {
+                const menuSection = menuLink.closest('.Footer-module--box--6b61b');
+                if (menuSection) {
+                  menuSection.style.display = 'none';
+                }
+              }
+            }, 500);
+          })();
+          true;
+        `}
       />
     </View>
   );
