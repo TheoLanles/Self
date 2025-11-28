@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import TimeTraveler from '../components/TimeTraveler';
 import { DARK_MODE_INJECTION } from '../components/auto-dark';
+import * as QuickActions from 'expo-quick-actions';
 
 export default function Index() {
   const insets = useSafeAreaInsets();
@@ -17,6 +18,37 @@ export default function Index() {
       webviewRef.current.reload();
     }
   }, [isTimeTravelActive]);
+
+  useEffect(() => {
+    QuickActions.setItems([
+      {
+        title: 'Voyage dans le temps',
+        subtitle: 'Activer le mode temporel',
+        icon: 'time',
+        id: 'time_travel',
+        params: { href: '/' },
+      },
+    ]);
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    if (QuickActions.initial?.id === 'time_travel') {
+      setIsTimeTravelActive(true);
+    }
+
+    const subscription = QuickActions.addListener((action: QuickActions.Action) => {
+      if (isMounted && action.id === 'time_travel') {
+        setIsTimeTravelActive(true);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.remove();
+    };
+  }, []);
 
   return (
     <View style={[styles.container, { paddingBottom: insets.bottom, backgroundColor: isDark ? '#252525' : '#fff' }]}>
