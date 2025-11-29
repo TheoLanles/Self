@@ -41,7 +41,7 @@
         {
           "androidIcons": {
             "time_travel_icon": {
-              "foregroundImage": "./assets/images/time_travel_icon.png",
+              "foregroundImage": "./assets/images/adaptive-icon-time.png",
               "backgroundColor": "#FFFFFF"
             }
           }
