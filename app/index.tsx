@@ -101,6 +101,7 @@ export default function Index() {
             style.innerHTML = \`
               #launcher,
               iframe[title="Nombre de messages non lus"],
+              .fieldService-module--box--85ccc,
               .Footer-module--box--6b61b:has(a[href="/reservation/Menu/"]) {
                 display: none !important;
               }
