@@ -19,6 +19,7 @@ export default function Index() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [savedCredentials, setSavedCredentials] = useState<{ username: string, password: string } | null>(null);
+  const [isCamouflaged, setIsCamouflaged] = useState(true); // Default to true to hide initial load
   const webviewRef = useRef<WebView>(null);
 
   // Charger les credentials sauvegardés
@@ -32,9 +33,16 @@ export default function Index() {
       if (stored) {
         const creds = JSON.parse(stored);
         setSavedCredentials(creds);
+        setIsCamouflaged(true); // Activer le camouflage si on a des credentials
+      } else {
+        setSavedCredentials(null);
+        setIsCamouflaged(false); // Pas de camouflage si pas de credentials
+        setShowLoginModal(true); // Afficher la config
       }
     } catch (error) {
       console.error('Erreur chargement credentials:', error);
+      setIsCamouflaged(false);
+      setShowLoginModal(true);
     }
   };
 
@@ -42,7 +50,16 @@ export default function Index() {
     try {
       await AsyncStorage.setItem(CREDENTIALS_KEY, JSON.stringify({ username, password }));
       setSavedCredentials({ username, password });
+      setIsCamouflaged(true); // Activer le camouflage immédiatement
       setShowLoginModal(false);
+
+      // Petit délai pour laisser le temps à React de mettre à jour la prop injectedJavaScript
+      // avant de recharger la WebView
+      setTimeout(() => {
+        if (webviewRef.current) {
+          webviewRef.current.reload();
+        }
+      }, 100);
     } catch (error) {
       console.error('Erreur sauvegarde credentials:', error);
     }
@@ -54,6 +71,8 @@ export default function Index() {
       setSavedCredentials(null);
       setUsername('');
       setPassword('');
+      setIsCamouflaged(false);
+      setShowLoginModal(true);
     } catch (error) {
       console.error('Erreur suppression credentials:', error);
     }
@@ -164,29 +183,21 @@ export default function Index() {
     }
   };
 
+  // Sécurité : si le camouflage reste bloqué trop longtemps (ex: erreur de login), on l'enlève
+  useEffect(() => {
+    if (isCamouflaged) {
+      const timer = setTimeout(() => {
+        setIsCamouflaged(false);
+      }, 15000); // 15 secondes max
+      return () => clearTimeout(timer);
+    }
+  }, [isCamouflaged]);
+
   return (
     <View style={[styles.container, { paddingBottom: insets.bottom, backgroundColor: isDark ? '#252525' : '#fff' }]}>
       <View style={{ height: insets.top * 0.5, backgroundColor: isDark ? '#252525' : '#F8F9FB' }} />
 
       <TimeTraveler isActive={isTimeTravelActive} onToggle={setIsTimeTravelActive} />
-
-      {/* Bouton pour gérer les credentials */}
-      <View style={styles.credentialsBar}>
-        {savedCredentials ? (
-          <View style={styles.credentialsInfo}>
-            <Text style={[styles.credentialsText, { color: isDark ? '#fff' : '#000' }]}>
-              🔐 Auto-login: {savedCredentials.username}
-            </Text>
-            <TouchableOpacity onPress={clearCredentials} style={styles.clearButton}>
-              <Text style={styles.clearButtonText}>✕</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <TouchableOpacity onPress={() => setShowLoginModal(true)} style={styles.setupButton}>
-            <Text style={styles.setupButtonText}>⚙️ Configurer auto-login</Text>
-          </TouchableOpacity>
-        )}
-      </View>
 
       <ScrollView
         contentContainerStyle={{ flex: 1 }}
@@ -210,6 +221,12 @@ export default function Index() {
           cacheEnabled={true}
           cacheMode="LOAD_CACHE_ELSE_NETWORK"
           javaScriptEnabled={true}
+          onNavigationStateChange={(navState) => {
+            // Si on arrive sur la page de réservation, on enlève le camouflage
+            if (navState.url.includes('/reservation') && !navState.loading) {
+              setIsCamouflaged(false);
+            }
+          }}
           injectedJavaScriptBeforeContentLoaded={
             isTimeTravelActive ? `
               (function() {
@@ -301,12 +318,22 @@ export default function Index() {
         />
       </ScrollView>
 
+      {/* Camouflage View */}
+      {isCamouflaged && savedCredentials && (
+        <View style={styles.camouflageOverlay}>
+          <ActivityIndicator size="large" color="#1992A6" />
+          <Text style={styles.camouflageText}>Connexion en cours...</Text>
+        </View>
+      )}
+
       {/* Modal de configuration */}
       <Modal
         visible={showLoginModal}
         transparent={true}
         animationType="slide"
-        onRequestClose={() => setShowLoginModal(false)}
+        onRequestClose={() => {
+          if (savedCredentials) setShowLoginModal(false);
+        }}
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: isDark ? '#353535' : '#fff' }]}>
@@ -344,12 +371,14 @@ export default function Index() {
             </Text>
 
             <View style={styles.modalButtons}>
-              <TouchableOpacity
-                onPress={() => setShowLoginModal(false)}
-                style={[styles.button, styles.cancelButton]}
-              >
-                <Text style={styles.buttonText}>Annuler</Text>
-              </TouchableOpacity>
+              {savedCredentials && (
+                <TouchableOpacity
+                  onPress={() => setShowLoginModal(false)}
+                  style={[styles.button, styles.cancelButton]}
+                >
+                  <Text style={styles.buttonText}>Annuler</Text>
+                </TouchableOpacity>
+              )}
 
               <TouchableOpacity
                 onPress={saveCredentials}
@@ -412,9 +441,10 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: '#252525',
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 9999,
   },
   modalContent: {
     width: '85%',
@@ -460,5 +490,18 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  camouflageOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#252525',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 9999,
+  },
+  camouflageText: {
+    color: '#fff',
+    marginTop: 16,
+    fontSize: 16,
+    fontWeight: '500',
   },
 });
