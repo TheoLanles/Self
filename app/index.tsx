@@ -1,10 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { StyleSheet, View, useColorScheme, ActivityIndicator, RefreshControl, ScrollView } from 'react-native';
+import { StyleSheet, View, useColorScheme, ActivityIndicator, RefreshControl, ScrollView, Modal, TextInput, TouchableOpacity, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import TimeTraveler from '../components/TimeTraveler';
 import { DARK_MODE_INJECTION } from '../components/auto-dark';
 import * as QuickActions from 'expo-quick-actions';
+
+const CREDENTIALS_KEY = '@cas_credentials';
 
 export default function Index() {
   const insets = useSafeAreaInsets();
@@ -12,7 +15,100 @@ export default function Index() {
   const isDark = colorScheme === 'dark';
   const [isTimeTravelActive, setIsTimeTravelActive] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [savedCredentials, setSavedCredentials] = useState<{ username: string, password: string } | null>(null);
   const webviewRef = useRef<WebView>(null);
+
+  // Charger les credentials sauvegardés
+  useEffect(() => {
+    loadCredentials();
+  }, []);
+
+  const loadCredentials = async () => {
+    try {
+      const stored = await AsyncStorage.getItem(CREDENTIALS_KEY);
+      if (stored) {
+        const creds = JSON.parse(stored);
+        setSavedCredentials(creds);
+      }
+    } catch (error) {
+      console.error('Erreur chargement credentials:', error);
+    }
+  };
+
+  const saveCredentials = async () => {
+    try {
+      await AsyncStorage.setItem(CREDENTIALS_KEY, JSON.stringify({ username, password }));
+      setSavedCredentials({ username, password });
+      setShowLoginModal(false);
+    } catch (error) {
+      console.error('Erreur sauvegarde credentials:', error);
+    }
+  };
+
+  const clearCredentials = async () => {
+    try {
+      await AsyncStorage.removeItem(CREDENTIALS_KEY);
+      setSavedCredentials(null);
+      setUsername('');
+      setPassword('');
+    } catch (error) {
+      console.error('Erreur suppression credentials:', error);
+    }
+  };
+
+  // Script d'auto-login CAS
+  const autoLoginScript = savedCredentials ? `
+    (function() {
+      function autoLogin() {
+
+        // 1. Gérer le bouton de profil "Élève" s'il existe
+        const eleveButton = document.getElementById('bouton_eleve');
+        if (eleveButton && !window.hasClickedEleve) {
+          console.log('Bouton Élève détecté - Click...');
+          eleveButton.click();
+          window.hasClickedEleve = true;
+        }
+
+        // 2. Détecter si on est sur la page de login CAS
+        const usernameField = document.querySelector('input[name="username"], input[id="username"], input[type="text"]');
+        const passwordField = document.querySelector('input[name="password"], input[id="password"], input[type="password"]');
+        // Utilisation de l'ID spécifique fourni par l'utilisateur
+        const submitButton = document.getElementById('bouton_valider') || document.querySelector('input[type="submit"], button[type="submit"]');
+
+        if (usernameField && passwordField && submitButton) {
+          console.log('Page CAS détectée - Auto-login en cours...');
+          
+          usernameField.value = '${savedCredentials.username}';
+          passwordField.value = '${savedCredentials.password}';
+          
+          usernameField.dispatchEvent(new Event('input', { bubbles: true }));
+          passwordField.dispatchEvent(new Event('input', { bubbles: true }));
+          
+          
+          setTimeout(() => {
+            submitButton.click();
+            setTimeout(() => {
+              window.location.href = 'https://monrestoco.centre-valdeloire.fr/reservation/';
+            }, 800);
+          }, 230);
+        }
+      }
+
+      autoLogin();
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', autoLogin);
+      }
+      const observer = new MutationObserver(() => {
+        autoLogin();
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+    })();
+    true;
+  ` : '';
 
   // Recharge le WebView quand on change le mode time travel
   useEffect(() => {
@@ -74,6 +170,24 @@ export default function Index() {
 
       <TimeTraveler isActive={isTimeTravelActive} onToggle={setIsTimeTravelActive} />
 
+      {/* Bouton pour gérer les credentials */}
+      <View style={styles.credentialsBar}>
+        {savedCredentials ? (
+          <View style={styles.credentialsInfo}>
+            <Text style={[styles.credentialsText, { color: isDark ? '#fff' : '#000' }]}>
+              🔐 Auto-login: {savedCredentials.username}
+            </Text>
+            <TouchableOpacity onPress={clearCredentials} style={styles.clearButton}>
+              <Text style={styles.clearButtonText}>✕</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity onPress={() => setShowLoginModal(true)} style={styles.setupButton}>
+            <Text style={styles.setupButtonText}>⚙️ Configurer auto-login</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
       <ScrollView
         contentContainerStyle={{ flex: 1 }}
         refreshControl={
@@ -88,7 +202,7 @@ export default function Index() {
       >
         <WebView
           ref={webviewRef}
-          source={{ uri: 'https://monrestoco.centre-valdeloire.fr/reservation/' }}
+          source={{ uri: 'https://auth.recia.fr/cas/login?service=https%3A%2F%2Fauth.region-centre.ianord.fr%2F%3Furl%3DaHR0cHM6Ly9tb25yZXN0b2NvLmNlbnRyZS12YWxkZWxvaXJlLmZyL3Jlc2VydmF0aW9uL1Jlc2VydmF0aW9uLw%253D%253D%26url%3DaHR0cHM6Ly9tb25yZXN0b2NvLmNlbnRyZS12YWxkZWxvaXJlLmZyL3Jlc2VydmF0aW9uL1Jlc2VydmF0aW9uLw%253D%253D&idpId=parentEleveEN-IdP' }}
           style={[styles.webview, { backgroundColor: isDark ? '#252525' : '#ffffff' }]}
           sharedCookiesEnabled={true}
           domStorageEnabled={true}
@@ -126,6 +240,7 @@ export default function Index() {
             ` : undefined
           }
           injectedJavaScript={`
+            ${autoLoginScript}
             (function() {
               const style = document.createElement('style');
               style.innerHTML = \`
@@ -185,6 +300,68 @@ export default function Index() {
           )}
         />
       </ScrollView>
+
+      {/* Modal de configuration */}
+      <Modal
+        visible={showLoginModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowLoginModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: isDark ? '#353535' : '#fff' }]}>
+            <Text style={[styles.modalTitle, { color: isDark ? '#fff' : '#000' }]}>
+              Configuration Auto-Login CAS
+            </Text>
+
+            <TextInput
+              style={[styles.input, {
+                backgroundColor: isDark ? '#252525' : '#f5f5f5',
+                color: isDark ? '#fff' : '#000'
+              }]}
+              placeholder="Identifiant"
+              placeholderTextColor={isDark ? '#999' : '#666'}
+              value={username}
+              onChangeText={setUsername}
+              autoCapitalize="none"
+            />
+
+            <TextInput
+              style={[styles.input, {
+                backgroundColor: isDark ? '#252525' : '#f5f5f5',
+                color: isDark ? '#fff' : '#000'
+              }]}
+              placeholder="Mot de passe"
+              placeholderTextColor={isDark ? '#999' : '#666'}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              autoCapitalize="none"
+            />
+
+            <Text style={[styles.warningText, { color: isDark ? '#ff9999' : '#cc0000' }]}>
+              ⚠️ Vos identifiants sont stockés localement sur votre appareil
+            </Text>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                onPress={() => setShowLoginModal(false)}
+                style={[styles.button, styles.cancelButton]}
+              >
+                <Text style={styles.buttonText}>Annuler</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={saveCredentials}
+                style={[styles.button, styles.saveButton]}
+                disabled={!username || !password}
+              >
+                <Text style={styles.buttonText}>Sauvegarder</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -195,5 +372,93 @@ const styles = StyleSheet.create({
   },
   webview: {
     flex: 1,
+  },
+  credentialsBar: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  credentialsInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#1992A6',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  credentialsText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#fff',
+  },
+  clearButton: {
+    padding: 4,
+  },
+  clearButtonText: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  setupButton: {
+    backgroundColor: '#1992A6',
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  setupButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    width: '85%',
+    borderRadius: 16,
+    padding: 24,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  input: {
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 16,
+    fontSize: 16,
+  },
+  warningText: {
+    fontSize: 12,
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 18,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  button: {
+    flex: 1,
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  cancelButton: {
+    backgroundColor: '#666',
+  },
+  saveButton: {
+    backgroundColor: '#1992A6',
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
