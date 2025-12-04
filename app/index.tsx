@@ -111,8 +111,8 @@ export default function Index() {
             submitButton.click();
             setTimeout(() => {
               window.location.href = 'https://monrestoco.centre-valdeloire.fr/reservation/';
-            }, 800);
-          }, 230);
+            }, 1000);
+          }, 300);
         }
       }
 
