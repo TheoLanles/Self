@@ -8,6 +8,7 @@ import { DARK_MODE_INJECTION } from '../components/auto-dark';
 import * as QuickActions from 'expo-quick-actions';
 
 const CREDENTIALS_KEY = '@cas_credentials';
+const LAST_CACHE_CLEAR_KEY = '@last_cache_clear';
 
 export default function Index() {
   const insets = useSafeAreaInsets();
@@ -25,6 +26,52 @@ export default function Index() {
   // Charger les credentials sauvegardés
   useEffect(() => {
     loadCredentials();
+    checkAndClearCache();
+  }, []);
+
+  // Vérifier et vider le cache à 14h tous les jours
+  const checkAndClearCache = async () => {
+    try {
+      const now = new Date();
+      const lastClearStr = await AsyncStorage.getItem(LAST_CACHE_CLEAR_KEY);
+
+      let shouldClear = false;
+
+      if (!lastClearStr) {
+        // Première fois, on vide le cache
+        shouldClear = true;
+      } else {
+        const lastClear = new Date(lastClearStr);
+        const todayAt14 = new Date();
+        todayAt14.setHours(14, 0, 0, 0);
+
+        // Si on est après 14h aujourd'hui et que le dernier clear était avant 14h aujourd'hui
+        if (now >= todayAt14 && lastClear < todayAt14) {
+          shouldClear = true;
+        }
+      }
+
+      if (shouldClear) {
+        console.log('[Cache] Vidage du cache à 14h');
+        // Sauvegarder la date du clear
+        await AsyncStorage.setItem(LAST_CACHE_CLEAR_KEY, now.toISOString());
+        // Recharger le WebView pour vider le cache
+        if (webviewRef.current) {
+          webviewRef.current.reload();
+        }
+      }
+    } catch (error) {
+      console.error('[Cache] Erreur lors de la vérification du cache:', error);
+    }
+  };
+
+  // Vérifier le cache toutes les 5 minutes
+  useEffect(() => {
+    const interval = setInterval(() => {
+      checkAndClearCache();
+    }, 5 * 60 * 1000); // 5 minutes
+
+    return () => clearInterval(interval);
   }, []);
 
   const loadCredentials = async () => {
@@ -78,53 +125,159 @@ export default function Index() {
     }
   };
 
-  // Script d'auto-login CAS
+  // Script d'auto-login CAS amélioré avec retry et timeouts adaptatifs
   const autoLoginScript = savedCredentials ? `
     (function() {
-      function autoLogin() {
+      // Configuration
+      const MAX_RETRIES = 10;
+      const INITIAL_DELAY = 500;
+      const MAX_DELAY = 3000;
+      let retryCount = 0;
+      let loginAttempted = false;
+      let eleveButtonClicked = false;
 
-        // 1. Gérer le bouton de profil "Élève" s'il existe
-        const eleveButton = document.getElementById('bouton_eleve');
-        if (eleveButton && !window.hasClickedEleve) {
-          console.log('Bouton Élève détecté - Click...');
-          eleveButton.click();
-          window.hasClickedEleve = true;
+      console.log('[AutoLogin] Script initialisé');
+
+      // Fonction pour vérifier si un élément est vraiment visible et interactif
+      function isElementReady(element) {
+        if (!element) return false;
+        const rect = element.getBoundingClientRect();
+        const style = window.getComputedStyle(element);
+        return rect.width > 0 && 
+               rect.height > 0 && 
+               style.display !== 'none' && 
+               style.visibility !== 'hidden' &&
+               style.opacity !== '0';
+      }
+
+      // Fonction pour attendre qu'un élément soit prêt
+      function waitForElement(selector, timeout = 5000) {
+        return new Promise((resolve) => {
+          const startTime = Date.now();
+          const checkElement = () => {
+            const element = typeof selector === 'string' 
+              ? document.querySelector(selector) 
+              : selector;
+            
+            if (element && isElementReady(element)) {
+              console.log('[AutoLogin] Élément trouvé et prêt:', selector);
+              resolve(element);
+            } else if (Date.now() - startTime > timeout) {
+              console.log('[AutoLogin] Timeout pour:', selector);
+              resolve(null);
+            } else {
+              setTimeout(checkElement, 100);
+            }
+          };
+          checkElement();
+        });
+      }
+
+      // Fonction principale d'auto-login avec retry
+      async function attemptAutoLogin() {
+        // Éviter les tentatives multiples
+        if (loginAttempted) {
+          return;
         }
 
-        // 2. Détecter si on est sur la page de login CAS
-        const usernameField = document.querySelector('input[name="username"], input[id="username"], input[type="text"]');
-        const passwordField = document.querySelector('input[name="password"], input[id="password"], input[type="password"]');
-        // Utilisation de l'ID spécifique fourni par l'utilisateur
-        const submitButton = document.getElementById('bouton_valider') || document.querySelector('input[type="submit"], button[type="submit"]');
+        console.log('[AutoLogin] Tentative', retryCount + 1, '/', MAX_RETRIES);
+
+        // 1. Gérer le bouton de profil "Élève" s'il existe
+        if (!eleveButtonClicked) {
+          const eleveButton = document.getElementById('bouton_eleve');
+          if (eleveButton && isElementReady(eleveButton)) {
+            console.log('[AutoLogin] Bouton Élève détecté - Click...');
+            eleveButton.click();
+            eleveButtonClicked = true;
+            // Attendre que la page se mette à jour après le click
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+        }
+
+        // 2. Chercher les champs de login
+        const usernameField = await waitForElement('input[name="username"], input[id="username"], input[type="text"]');
+        const passwordField = await waitForElement('input[name="password"], input[id="password"], input[type="password"]');
+        const submitButton = await waitForElement('#bouton_valider') || 
+                            await waitForElement('input[type="submit"], button[type="submit"]');
 
         if (usernameField && passwordField && submitButton) {
-          console.log('Page CAS détectée - Auto-login en cours...');
-          
+          console.log('[AutoLogin] Tous les éléments trouvés - Remplissage...');
+          loginAttempted = true;
+
+          // Remplir les champs
           usernameField.value = '${savedCredentials.username}';
           passwordField.value = '${savedCredentials.password}';
           
+          // Déclencher les événements
           usernameField.dispatchEvent(new Event('input', { bubbles: true }));
+          usernameField.dispatchEvent(new Event('change', { bubbles: true }));
           passwordField.dispatchEvent(new Event('input', { bubbles: true }));
+          passwordField.dispatchEvent(new Event('change', { bubbles: true }));
+
+          console.log('[AutoLogin] Champs remplis - Attente avant soumission...');
           
-          
-          setTimeout(() => {
+          // Attendre un peu plus longtemps avant de soumettre
+          await new Promise(resolve => setTimeout(resolve, 800));
+
+          // Vérifier que les valeurs sont toujours là
+          if (usernameField.value && passwordField.value) {
+            console.log('[AutoLogin] Soumission du formulaire...');
             submitButton.click();
-            setTimeout(() => {
-              window.location.href = 'https://monrestoco.centre-valdeloire.fr/reservation/';
-            }, 1000);
-          }, 300);
+
+            // Surveiller le succès du login
+            let redirectTimeout = setTimeout(() => {
+              console.log('[AutoLogin] Redirection de sécurité...');
+              if (window.location.href.includes('/reservation')) {
+                console.log('[AutoLogin] Déjà sur la page de réservation');
+              } else {
+                window.location.href = 'https://monrestoco.centre-valdeloire.fr/reservation/';
+              }
+            }, 5000); // Augmenté à 5 secondes
+
+            // Observer les changements d'URL pour détecter le succès
+            const urlObserver = setInterval(() => {
+              if (window.location.href.includes('/reservation')) {
+                console.log('[AutoLogin] Login réussi - Sur la page de réservation');
+                clearTimeout(redirectTimeout);
+                clearInterval(urlObserver);
+              }
+            }, 500);
+
+          } else {
+            console.log('[AutoLogin] Erreur: Les champs sont vides après remplissage');
+            loginAttempted = false;
+          }
+
+        } else {
+          // Retry avec backoff exponentiel
+          retryCount++;
+          if (retryCount < MAX_RETRIES) {
+            const delay = Math.min(INITIAL_DELAY * Math.pow(1.5, retryCount), MAX_DELAY);
+            console.log('[AutoLogin] Éléments non trouvés - Nouvelle tentative dans', delay, 'ms');
+            setTimeout(attemptAutoLogin, delay);
+          } else {
+            console.log('[AutoLogin] Nombre maximum de tentatives atteint');
+          }
         }
       }
 
-      autoLogin();
-
+      // Démarrer l'auto-login
       if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', autoLogin);
+        document.addEventListener('DOMContentLoaded', attemptAutoLogin);
+      } else {
+        attemptAutoLogin();
       }
+
+      // Observer les changements DOM pour les pages qui se chargent dynamiquement
       const observer = new MutationObserver(() => {
-        autoLogin();
+        if (!loginAttempted && retryCount < MAX_RETRIES) {
+          attemptAutoLogin();
+        }
       });
-      observer.observe(document.body, { childList: true, subtree: true });
+      
+      if (document.body) {
+        observer.observe(document.body, { childList: true, subtree: true });
+      }
     })();
     true;
   ` : '';
@@ -170,15 +323,21 @@ export default function Index() {
   }, []);
 
   // Fonction de rafraîchissement sans cache
-  const onRefresh = () => {
+  const onRefresh = async () => {
     setRefreshing(true);
-    if (webviewRef.current) {
-      webviewRef.current.injectJavaScript(`
-        (function() {
-          window.location.reload(true);
-        })();
-        true;
-      `);
+    const webview = webviewRef.current;
+    if (webview) {
+      console.log('[Cache] Vidage forcé du cache via swipe refresh');
+
+      // Vider le cache de la WebView
+      webview.clearCache(true);
+
+      // Attendre un peu avant de recharger
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      // Recharger la page
+      webview.reload();
+
       setTimeout(() => setRefreshing(false), 1000);
     }
   };
@@ -188,7 +347,7 @@ export default function Index() {
     if (isCamouflaged) {
       const timer = setTimeout(() => {
         setIsCamouflaged(false);
-      }, 15000); // 15 secondes max
+      }, 30000); // 30 secondes max pour les connexions lentes
       return () => clearTimeout(timer);
     }
   }, [isCamouflaged]);
