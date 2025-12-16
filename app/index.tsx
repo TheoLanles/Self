@@ -5,6 +5,7 @@ import { WebView } from 'react-native-webview';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import TimeTraveler from '../components/TimeTraveler';
 import { DARK_MODE_INJECTION } from '../components/auto-dark';
+import { API_BOOKING_INJECTION } from '../components/api-booking';
 import * as QuickActions from 'expo-quick-actions';
 
 const CREDENTIALS_KEY = '@cas_credentials';
@@ -352,11 +353,53 @@ export default function Index() {
     }
   }, [isCamouflaged]);
 
+  // État pour les messages de booking
+  const [bookingStatus, setBookingStatus] = useState<{ loading: boolean, message: string }>({
+    loading: false,
+    message: ''
+  });
+
+  // Gérer les messages de la WebView (pour les réponses API booking)
+  const handleWebViewMessage = (event: any) => {
+    try {
+      const message = JSON.parse(event.nativeEvent.data);
+
+      if (message.type === 'weekly_booking_complete') {
+        const successCount = message.results.filter((r: any) => r.success).length;
+        console.log(`[Booking] ${successCount}/5 réservations créées`);
+        setBookingStatus({ loading: false, message: ` ${successCount}/5 réservations créées` });
+
+        // Rafraîchir la WebView après les réservations
+        setTimeout(() => {
+          if (webviewRef.current) {
+            console.log('[Booking] Rafraîchissement de la page...');
+            webviewRef.current.reload();
+          }
+        }, 2000); // Délai de 2s pour laisser le temps de voir le message
+      } else if (message.type === 'weekly_booking_error') {
+        console.error('[Booking] Erreur:', message.message);
+        setBookingStatus({ loading: false, message: `Erreur: ${message.message}` });
+      }
+    } catch (error) {
+      // Ignorer les messages qui ne sont pas JSON
+    }
+  };
+
+  const handleBookingStart = () => {
+    setBookingStatus({ loading: true, message: '' });
+  };
+
   return (
     <View style={[styles.container, { paddingBottom: insets.bottom, backgroundColor: isDark ? '#252525' : '#fff' }]}>
       <View style={{ height: insets.top * 0.5, backgroundColor: isDark ? '#252525' : '#F8F9FB' }} />
 
-      <TimeTraveler isActive={isTimeTravelActive} onToggle={setIsTimeTravelActive} />
+      <TimeTraveler
+        isActive={isTimeTravelActive}
+        onToggle={setIsTimeTravelActive}
+        webviewRef={webviewRef}
+        bookingStatus={bookingStatus}
+        onBookingStart={handleBookingStart}
+      />
 
       <ScrollView
         contentContainerStyle={{ flex: 1 }}
@@ -380,6 +423,7 @@ export default function Index() {
           cacheEnabled={true}
           cacheMode="LOAD_CACHE_ELSE_NETWORK"
           javaScriptEnabled={true}
+          onMessage={handleWebViewMessage}
           onNavigationStateChange={(navState) => {
             // Si on arrive sur la page de réservation, on enlève le camouflage
             if (navState.url.includes('/reservation') && !navState.loading) {
@@ -473,6 +517,7 @@ export default function Index() {
               observer.observe(document.body, { childList: true, subtree: true });
             })();
             ${isDark ? DARK_MODE_INJECTION : ''}
+            ${API_BOOKING_INJECTION}
             true;
           `}
           renderLoading={() => (
