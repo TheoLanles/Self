@@ -258,9 +258,6 @@ export default function TimeTraveler({ isActive, onToggle, webviewRef, bookingSt
                             />
                         </View>
 
-                        {/* Séparateur */}
-                        <View style={styles.separator} />
-
                         {/* Bouton de réservation hebdomadaire */}
                         <TouchableOpacity
                             style={[styles.button, styles.buttonBooking]}
@@ -268,6 +265,9 @@ export default function TimeTraveler({ isActive, onToggle, webviewRef, bookingSt
                         >
                             <Text style={styles.textStyle}>Réserver la semaine</Text>
                         </TouchableOpacity>
+
+                        {/* Séparateur */}
+                        <View style={styles.separator} />
 
                         {/* Message de feedback */}
                         {bookingMessage ? (
