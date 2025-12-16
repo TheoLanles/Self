@@ -1,6 +1,6 @@
 import { Accelerometer } from 'expo-sensors';
 import React, { useEffect, useState } from 'react';
-import { Modal, StyleSheet, Switch, Text, TouchableOpacity, View, useColorScheme, ActivityIndicator } from 'react-native';
+import { Modal, StyleSheet, Switch, Text, TouchableOpacity, View, useColorScheme, ActivityIndicator, Alert } from 'react-native';
 import { WebView } from 'react-native-webview';
 
 interface TimeTravelerProps {
@@ -59,8 +59,58 @@ export default function TimeTraveler({ isActive, onToggle, webviewRef, bookingSt
         return weekdays;
     };
 
+    // Calculer les 5 jours de la semaine à partir d'une date donnée
+    const getWeekdaysFrom = (startDate: Date) => {
+        const weekdays = [];
+        const currentDay = startDate.getDay(); // 0=Dimanche, 1=Lundi, etc.
+
+        // Calculer le lundi de cette semaine
+        const monday = new Date(startDate);
+        monday.setDate(startDate.getDate() - (currentDay === 0 ? 6 : currentDay - 1));
+
+        // Ajouter les 5 jours de la semaine
+        for (let i = 0; i < 5; i++) {
+            const day = new Date(monday);
+            day.setDate(monday.getDate() + i);
+            weekdays.push(day.toISOString().split('T')[0]); // Format: YYYY-MM-DD
+        }
+
+        return weekdays;
+    };
+
     // Fonction pour réserver toute la semaine
     const handleWeeklyBooking = () => {
+        if (!webviewRef?.current) {
+            return;
+        }
+
+        // Afficher le sélecteur de semaine
+        Alert.alert(
+            'Choisir la semaine',
+            'Quelle semaine souhaitez-vous réserver ?',
+            [
+                {
+                    text: 'Semaine actuelle',
+                    onPress: () => executeBooking(0)
+                },
+                {
+                    text: 'Semaine 1 (prochaine)',
+                    onPress: () => executeBooking(1)
+                },
+                {
+                    text: 'Semaine 2 (+2 semaines)',
+                    onPress: () => executeBooking(2)
+                },
+                {
+                    text: 'Annuler',
+                    style: 'cancel'
+                }
+            ]
+        );
+    };
+
+    // Fonction pour exécuter la réservation selon la semaine choisie
+    const executeBooking = (weeksAhead: number) => {
         if (!webviewRef?.current) {
             return;
         }
@@ -68,7 +118,11 @@ export default function TimeTraveler({ isActive, onToggle, webviewRef, bookingSt
         // Notifier le parent que le booking commence
         onBookingStart?.();
 
-        const weekdays = getWeekdays();
+        // Calculer la date de début selon le nombre de semaines à l'avance
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() + (weeksAhead * 7));
+
+        const weekdays = getWeekdaysFrom(startDate);
 
         const script = `
             (async function() {

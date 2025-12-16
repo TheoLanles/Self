@@ -22,6 +22,7 @@ export default function Index() {
   const [password, setPassword] = useState('');
   const [savedCredentials, setSavedCredentials] = useState<{ username: string, password: string } | null>(null);
   const [isCamouflaged, setIsCamouflaged] = useState(true); // Default to true to hide initial load
+  const [forceHideLoading, setForceHideLoading] = useState(false); // Forcer le masquage du loading
   const webviewRef = useRef<WebView>(null);
 
   // Charger les credentials sauvegardés
@@ -367,15 +368,23 @@ export default function Index() {
       if (message.type === 'weekly_booking_complete') {
         const successCount = message.results.filter((r: any) => r.success).length;
         console.log(`[Booking] ${successCount}/5 réservations créées`);
-        setBookingStatus({ loading: false, message: ` ${successCount}/5 réservations créées` });
+        setBookingStatus({ loading: false, message: `Réservations effectuées` });
 
-        // Rafraîchir la WebView après les réservations
+        // Rafraîchir la WebView après les réservations (double refresh)
         setTimeout(() => {
           if (webviewRef.current) {
-            console.log('[Booking] Rafraîchissement de la page...');
+            console.log('[Booking] Rafraîchissement de la page (1/2)...');
             webviewRef.current.reload();
+
+            // Deuxième refresh pour s'assurer que les réservations s'affichent
+            setTimeout(() => {
+              if (webviewRef.current) {
+                console.log('[Booking] Rafraîchissement de la page (2/2)...');
+                webviewRef.current.reload();
+              }
+            }, 500); // 1 secondes après le premier refresh
           }
-        }, 2000); // Délai de 2s pour laisser le temps de voir le message
+        }, 500); // Délai de 1s pour laisser le temps de voir le message
       } else if (message.type === 'weekly_booking_error') {
         console.error('[Booking] Erreur:', message.message);
         setBookingStatus({ loading: false, message: `Erreur: ${message.message}` });
