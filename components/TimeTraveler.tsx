@@ -2,6 +2,7 @@ import { Accelerometer } from 'expo-sensors';
 import React, { useEffect, useState } from 'react';
 import { Modal, StyleSheet, Switch, Text, TouchableOpacity, View, useColorScheme, ActivityIndicator, Alert } from 'react-native';
 import { WebView } from 'react-native-webview';
+import { Ionicons } from '@expo/vector-icons';
 
 interface TimeTravelerProps {
     isActive: boolean;
@@ -13,6 +14,8 @@ interface TimeTravelerProps {
 
 export default function TimeTraveler({ isActive, onToggle, webviewRef, bookingStatus, onBookingStart }: TimeTravelerProps) {
     const [modalVisible, setModalVisible] = useState(false);
+    const [weekSelectionVisible, setWeekSelectionVisible] = useState(false);
+    const [weekLoading, setWeekLoading] = useState(false);
     const [subscription, setSubscription] = useState<any>(null);
     const colorScheme = useColorScheme();
     const isDark = colorScheme === 'dark';
@@ -20,6 +23,23 @@ export default function TimeTraveler({ isActive, onToggle, webviewRef, bookingSt
     // Utiliser le statut de booking du parent
     const bookingLoading = bookingStatus?.loading || false;
     const bookingMessage = bookingStatus?.message || '';
+
+    // Gérer le toggle du time travel avec fermeture et refresh
+    const handleToggle = (value: boolean) => {
+        // Appeler le toggle du parent
+        onToggle(value);
+
+        // Fermer le modal
+        setModalVisible(false);
+
+        // Rafraîchir la page après un court délai
+        setTimeout(() => {
+            if (webviewRef?.current) {
+                console.log('[TimeTraveler] Refresh après toggle...');
+                webviewRef.current.reload();
+            }
+        }, 300);
+    };
 
     const _subscribe = () => {
         setSubscription(
@@ -84,29 +104,8 @@ export default function TimeTraveler({ isActive, onToggle, webviewRef, bookingSt
             return;
         }
 
-        // Afficher le sélecteur de semaine
-        Alert.alert(
-            'Choisir la semaine',
-            'Quelle semaine souhaitez-vous réserver ?',
-            [
-                {
-                    text: 'Semaine actuelle',
-                    onPress: () => executeBooking(0)
-                },
-                {
-                    text: 'Semaine 1 (prochaine)',
-                    onPress: () => executeBooking(1)
-                },
-                {
-                    text: 'Semaine 2 (+2 semaines)',
-                    onPress: () => executeBooking(2)
-                },
-                {
-                    text: 'Annuler',
-                    style: 'cancel'
-                }
-            ]
-        );
+        // Afficher le modal de sélection de semaine
+        setWeekSelectionVisible(true);
     };
 
     // Fonction pour exécuter la réservation selon la semaine choisie
@@ -198,6 +197,39 @@ export default function TimeTraveler({ isActive, onToggle, webviewRef, bookingSt
         `;
 
         webviewRef.current.injectJavaScript(script);
+
+        // Activer le loading
+        setWeekLoading(true);
+
+        // Attendre la confirmation (3 secondes)
+        setTimeout(() => {
+            // Désactiver le loading
+            setWeekLoading(false);
+
+            // Fermer le modal de sélection de semaine
+            setWeekSelectionVisible(false);
+
+            // Fermer le modal principal après 300ms
+            setTimeout(() => {
+                setModalVisible(false);
+
+                // Premier refresh après 500ms
+                setTimeout(() => {
+                    if (webviewRef.current) {
+                        console.log('[Booking] Premier refresh...');
+                        webviewRef.current.reload();
+
+                        // Deuxième refresh après 500ms supplémentaires
+                        setTimeout(() => {
+                            if (webviewRef.current) {
+                                console.log('[Booking] Deuxième refresh...');
+                                webviewRef.current.reload();
+                            }
+                        }, 500);
+                    }
+                }, 500);
+            }, 300);
+        }, 3000);
     };
 
     useEffect(() => {
@@ -206,58 +238,120 @@ export default function TimeTraveler({ isActive, onToggle, webviewRef, bookingSt
     }, []);
 
     return (
-        <Modal
-            animationType="fade"
-            transparent={true}
-            visible={modalVisible}
-            onRequestClose={() => setModalVisible(false)}
-        >
-            <View style={styles.centeredView}>
-                <View style={[styles.modalView, isDark && styles.modalViewDark]}>
-                    <Text style={[styles.modalText, isDark && styles.textLight]}>Mode Avancé</Text>
-                    <View style={styles.row}>
-                        <Text style={[styles.label, isDark && styles.textLight]}>Activer (Hier 10h)</Text>
-                        <Switch
-                            trackColor={{ false: "#767577", true: "#1992A6" }}
-                            thumbColor={isActive ? "#ffffff" : "#f4f3f4"}
-                            onValueChange={onToggle}
-                            value={isActive}
-                        />
-                    </View>
+        <>
+            <Modal
+                animationType="fade"
+                transparent={true}
+                visible={modalVisible}
+                onRequestClose={() => setModalVisible(false)}
+            >
+                <View style={styles.centeredView}>
+                    <View style={[styles.modalView, isDark && styles.modalViewDark]}>
+                        <Text style={[styles.modalText, isDark && styles.textLight]}>Mode Avancé</Text>
+                        <View style={styles.row}>
+                            <Text style={[styles.label, isDark && styles.textLight]}>Activer (Hier 10h)</Text>
+                            <Switch
+                                trackColor={{ false: "#767577", true: "#1992A6" }}
+                                thumbColor={isActive ? "#ffffff" : "#f4f3f4"}
+                                onValueChange={handleToggle}
+                                value={isActive}
+                            />
+                        </View>
 
-                    {/* Séparateur */}
-                    <View style={styles.separator} />
+                        {/* Séparateur */}
+                        <View style={styles.separator} />
 
-                    {/* Bouton de réservation hebdomadaire */}
-                    <TouchableOpacity
-                        style={[styles.button, styles.buttonBooking, bookingLoading && styles.buttonDisabled]}
-                        onPress={handleWeeklyBooking}
-                        disabled={bookingLoading}
-                    >
-                        {bookingLoading ? (
-                            <View style={styles.loadingRow}>
-                                <ActivityIndicator size="small" color="#ffffff" />
-                                <Text style={[styles.textStyle, { marginLeft: 10 }]}>Réservation...</Text>
-                            </View>
-                        ) : (
+                        {/* Bouton de réservation hebdomadaire */}
+                        <TouchableOpacity
+                            style={[styles.button, styles.buttonBooking]}
+                            onPress={handleWeeklyBooking}
+                        >
                             <Text style={styles.textStyle}>Réserver la semaine</Text>
-                        )}
-                    </TouchableOpacity>
+                        </TouchableOpacity>
 
-                    {/* Message de feedback */}
-                    {bookingMessage ? (
-                        <Text style={[styles.feedbackText, isDark && styles.textLight]}>{bookingMessage}</Text>
-                    ) : null}
+                        {/* Message de feedback */}
+                        {bookingMessage ? (
+                            <Text style={[styles.feedbackText, isDark && styles.textLight]}>{bookingMessage}</Text>
+                        ) : null}
 
-                    <TouchableOpacity
-                        style={[styles.button, styles.buttonClose]}
-                        onPress={() => setModalVisible(false)}
-                    >
-                        <Text style={styles.textStyle}>Fermer</Text>
-                    </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.button, styles.buttonClose]}
+                            onPress={() => setModalVisible(false)}
+                        >
+                            <Text style={styles.textStyle}>Fermer</Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
-            </View>
-        </Modal>
+            </Modal>
+
+            {/* Modal de sélection de semaine */}
+            <Modal
+                animationType="fade"
+                transparent={true}
+                visible={weekSelectionVisible}
+                onRequestClose={() => setWeekSelectionVisible(false)}
+            >
+                <View style={styles.centeredView}>
+                    <View style={[styles.weekModalView, isDark && styles.modalViewDark]}>
+                        <Text style={[styles.weekModalTitle, isDark && styles.textLight]}>Réservation</Text>
+                        <Text style={[styles.weekModalSubtitle, isDark && styles.textLight]}>
+                            Sélectionnez la semaine à réserver
+                        </Text>
+
+                        <View style={styles.weekButtonsContainer}>
+                            <TouchableOpacity
+                                style={[styles.weekButton, styles.weekButtonCurrent, weekLoading && styles.buttonDisabled]}
+                                onPress={() => executeBooking(0)}
+                                disabled={weekLoading}
+                            >
+                                {weekLoading ? (
+                                    <ActivityIndicator size="small" color="#fff" />
+                                ) : (
+                                    <Ionicons name="calendar" size={24} color="#fff" />
+                                )}
+                                <Text style={styles.weekButtonText}>Semaine actuelle</Text>
+                                <Text style={styles.weekButtonSubtext}>Cette semaine</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[styles.weekButton, styles.weekButton1, weekLoading && styles.buttonDisabled]}
+                                onPress={() => executeBooking(1)}
+                                disabled={weekLoading}
+                            >
+                                {weekLoading ? (
+                                    <ActivityIndicator size="small" color="#fff" />
+                                ) : (
+                                    <Ionicons name="arrow-forward" size={24} color="#fff" />
+                                )}
+                                <Text style={styles.weekButtonText}>Semaine prochaine</Text>
+                                <Text style={styles.weekButtonSubtext}>Dans 7 jours</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[styles.weekButton, styles.weekButton2, weekLoading && styles.buttonDisabled]}
+                                onPress={() => executeBooking(2)}
+                                disabled={weekLoading}
+                            >
+                                {weekLoading ? (
+                                    <ActivityIndicator size="small" color="#fff" />
+                                ) : (
+                                    <Ionicons name="play-forward" size={24} color="#fff" />
+                                )}
+                                <Text style={styles.weekButtonText}>Semaine +2</Text>
+                                <Text style={styles.weekButtonSubtext}>Dans 14 jours</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <TouchableOpacity
+                            style={[styles.button, styles.weekCancelButton]}
+                            onPress={() => setWeekSelectionVisible(false)}
+                        >
+                            <Text style={[styles.textStyle, { color: isDark ? '#fff' : '#667085' }]}>Annuler</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+        </>
     );
 }
 
@@ -339,5 +433,72 @@ const styles = StyleSheet.create({
         fontSize: 14,
         textAlign: 'center',
         color: '#667085',
+    },
+    weekModalView: {
+        margin: 20,
+        backgroundColor: 'white',
+        borderRadius: 24,
+        padding: 24,
+        alignItems: 'center',
+        width: '90%',
+        maxWidth: 400,
+    },
+    weekModalTitle: {
+        fontSize: 24,
+        fontWeight: 'bold',
+        color: '#1992A6',
+        marginBottom: 8,
+    },
+    weekModalSubtitle: {
+        fontSize: 14,
+        color: '#667085',
+        marginBottom: 24,
+        textAlign: 'center',
+    },
+    weekButtonsContainer: {
+        width: '100%',
+        gap: 12,
+    },
+    weekButton: {
+        width: '100%',
+        padding: 16,
+        borderRadius: 16,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+    },
+    weekButtonCurrent: {
+        backgroundColor: '#1992A6',
+    },
+    weekButton1: {
+        backgroundColor: '#27AE60',
+    },
+    weekButton2: {
+        backgroundColor: '#F39C12',
+    },
+    weekButtonEmoji: {
+        fontSize: 24,
+    },
+    weekButtonText: {
+        flex: 1,
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    weekButtonSubtext: {
+        color: '#fff',
+        fontSize: 12,
+        opacity: 0.8,
+    },
+    weekCancelButton: {
+        backgroundColor: 'transparent',
+        marginTop: 16,
+        borderWidth: 1,
+        borderColor: '#dfe0eb',
     },
 });

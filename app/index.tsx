@@ -433,6 +433,16 @@ export default function Index() {
           cacheMode="LOAD_CACHE_ELSE_NETWORK"
           javaScriptEnabled={true}
           onMessage={handleWebViewMessage}
+          onLoadStart={() => {
+            // Réinitialiser le flag de force hide
+            setForceHideLoading(false);
+
+            // Timeout de sécurité : forcer le masquage du loading après 10 secondes
+            setTimeout(() => {
+              setForceHideLoading(true);
+              console.log('[WebView] Timeout: forçage du masquage du loading');
+            }, 10000);
+          }}
           onNavigationStateChange={(navState) => {
             // Si on arrive sur la page de réservation, on enlève le camouflage
             if (navState.url.includes('/reservation') && !navState.loading) {
@@ -529,16 +539,23 @@ export default function Index() {
             ${API_BOOKING_INJECTION}
             true;
           `}
-          renderLoading={() => (
-            <View style={{
-              flex: 55,
-              backgroundColor: isDark ? '#252525' : '#ffffff',
-              justifyContent: 'center',
-              alignItems: 'center'
-            }}>
-              <ActivityIndicator size="large" color="#1992A6" />
-            </View>
-          )}
+          renderLoading={() => {
+            // Si le timeout est atteint, ne pas afficher le loading
+            if (forceHideLoading) {
+              return null;
+            }
+
+            return (
+              <View style={{
+                flex: 55,
+                backgroundColor: isDark ? '#252525' : '#ffffff',
+                justifyContent: 'center',
+                alignItems: 'center'
+              }}>
+                <ActivityIndicator size="large" color="#1992A6" />
+              </View>
+            );
+          }}
         />
       </ScrollView>
 
