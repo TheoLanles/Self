@@ -452,9 +452,20 @@ export default function Index() {
                 });
               }
 
+              function hideQrCode() {
+                const qrLink = document.querySelector('a[href="/reservation/QrCode/"]');
+                if (qrLink) {
+                  const qrSection = qrLink.closest('section');
+                  if (qrSection) {
+                    qrSection.style.display = 'none';
+                  }
+                }
+              }
+
               function runRemovals() {
                 hideMenu();
                 hideCafeteria();
+                hideQrCode();
               }
 
               runRemovals();
